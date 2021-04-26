@@ -1,0 +1,7 @@
+In Linux:
+sudo apt-get install libav-tools libavcodec-extra-*
+
+In Windows:
+https://ffmpeg.org/download.html
+https://github.com/BtbN/FFmpeg-Builds/releases
+ffmpeg-N-101739-gcad3a5d715-win64-gpl.zip

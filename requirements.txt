@@ -1,0 +1,6 @@
+pydub
+googletrans
+requests
+pyttsx3
+regex
+ffmpeg-python
