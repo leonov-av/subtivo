@@ -1,6 +1,10 @@
 In Linux:
 sudo apt-get install libav-tools libavcodec-extra-*
 
+
+## Festival ##
+sudo apt-get install festival
+
 In Windows:
 https://ffmpeg.org/download.html
 https://github.com/BtbN/FFmpeg-Builds/releases
