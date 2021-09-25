@@ -7,12 +7,10 @@ if configs.os == "Windows":
 elif configs.os == "Linux":
     ffmpeg_path = '''/usr/bin/ffmpeg'''
 
-
 def convert_wav_to_mp3(wav_file, mp3_file):
     command = ffmpeg_path + ''' -y -i ''' + wav_file + \
         ''' -vn -ar 44100 -ac 2 -b:a 192k ''' + mp3_file
     functions_tools.execute_command(command)
-
 
 def create_silence_file(duration_s, file_path):
     command = ffmpeg_path + ''' -y -f lavfi -i anullsrc -t ''' + str(float(duration_s/1000)) + ''' ''' + file_path

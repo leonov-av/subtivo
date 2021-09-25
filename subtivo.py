@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import functions_tts
-import functions_ffmpeg_wrapper
+import functions_audio_wrappers
 import json
 import re
 import os
+import shutil
+import getopt, sys
 
 
 def get_text_blocks_from_subtitles(file):
@@ -15,6 +17,9 @@ def get_text_blocks_from_subtitles(file):
     content = re.sub("\r","",content)
     blocks = list()
     for block in content.split("\n\n"):
+        block = re.sub("<[^>]*>","",block)
+        block = re.sub("\{[^}]*}", "", block)
+        block = re.sub("^\!", "", block)
         blocks.append(block)
     return blocks
 
@@ -25,12 +30,14 @@ def check_blocks(blocks):
             print("---")
             print("Error: remove new lines:")
             print(block)
+            exit()
         for line in re.sub("^[0-9]*\n", "", block).split("\n"):
             if not "-->" in line:
                 if not re.findall("[\.!\?:]$", line):
                     print("---")
                     print("Error: wrong ending:")
                     print(block)
+                    exit()
 
 
 def get_mil_seconds(line):
@@ -58,6 +65,7 @@ def analyse_block(block):
                     text += line + " "
                 n+=1
             analysed_block['text'] = text
+            analysed_block['text'] = re.sub("^! *", "", analysed_block['text'])
         except:
             print("--- Except in analyse_block ")
             print(block)
@@ -66,18 +74,13 @@ def analyse_block(block):
     return(analysed_block)
 
 
-# def get_audio_file_duration(filepath):
-#     return audio.analyse_audio_file(filepath)['duration']
-
-
 def get_audio_file_duration(filepath):
-    return functions_ffmpeg_wrapper.get_file_duration_sox(file_path=filepath)
+    return functions_audio_wrappers.get_file_duration_sox(file_path=filepath)
 
 
-def generate_audio_files_for_text_block(block, folder):
-    analysed_block = analyse_block(block)
+def generate_audio_files_for_text_block(analysed_block, folder):
     print(json.dumps(analysed_block, indent=4))
-    if 'number' in analysed_block:
+    if 'number' in analysed_block and analysed_block['text'] != "" and len(re.sub(" ","",analysed_block['text'])) > 1:
         filepath = folder + str(analysed_block['number']) + ".wav"
         print(filepath)
         speed = 0
@@ -99,79 +102,72 @@ def generate_audio_files_for_text_block(block, folder):
             print("Status: " + status)
 
 
-def generate_audio_files_for_all_text_blocks(blocks, audio_temp_folder):
+def generate_audio_files_for_text_blocks(blocks, audio_temp_folder, result_audio_file):
     max_num = len(blocks)
-    print("Generating audio files for text blocks")
-    for block_id in range(0, max_num):
-        print(str(block_id) + " from " + str(max_num))
-        generate_audio_files_for_text_block(blocks[block_id], audio_temp_folder)
-
-
-def generate_result_file(blocks, audio_temp_folder, result_audio_file):
-    max_num = len(blocks)
-    print("Making silence files")
     audio_track = ""
     previous_end = 0
     n = 1000000000000
     for block_id in range(0, max_num):
-        print(block_id)
+        print(str(block_id) + " from " + str(max_num))
         analysed_block = analyse_block(blocks[block_id])
+        print(analysed_block)
         if 'number' in analysed_block:
-            print(analysed_block)
+            generate_audio_files_for_text_block(analysed_block, audio_temp_folder)
             print(str(block_id) + " from " + str(max_num))
-
             # Silence PRE
-            silence = audio_temp_folder + "part_" + str(n) + "_0_silence_pre_" + str(analysed_block['number']) + ".wav"
+            pre_silence = audio_temp_folder + "part_" + str(n) + "_0_silence_pre_" + str(analysed_block['number']) + ".wav"
             print(analysed_block['start'])
             print(previous_end)
             pre_silence_duration = analysed_block['start'] - previous_end
-            if not os.path.isfile(silence):
-                functions_ffmpeg_wrapper.create_silence_wav_sox(duration_s = pre_silence_duration,
-                                                                file_path= silence)
+            if not os.path.isfile(pre_silence):
+                functions_audio_wrappers.create_silence_wav_sox(duration_s = pre_silence_duration,
+                                                                file_path= pre_silence)
 
-            dur_file = get_audio_file_duration(silence)
-            if dur_file != pre_silence_duration and dur_file != pre_silence_duration+1 and dur_file != pre_silence_duration-1:
-                print("Silence file: " + str(dur_file))
-                print("Silence file should be: " + str(pre_silence_duration))
+            pre_silence_duration_from_file = get_audio_file_duration(pre_silence)
+            if pre_silence_duration_from_file != pre_silence_duration and \
+                    pre_silence_duration_from_file != pre_silence_duration+1 and\
+                    pre_silence_duration_from_file != pre_silence_duration-1:
+                print("ERROR! pre_silence_duration_from_file != pre_silence_duration")
+                print("pre_silence_duration_from_file: " + str(pre_silence_duration_from_file))
+                print("pre_silence_duration: " + str(pre_silence_duration))
                 exit()
 
             # Silence for Phrase
-            silence = audio_temp_folder + "silence_for_phrase_" + str(analysed_block['number']) + ".wav"
+            phrase_silence = audio_temp_folder + "silence_for_phrase_" + str(analysed_block['number']) + ".wav"
             phrase_silence_duration = analysed_block['end'] - analysed_block['start']
-            if not os.path.isfile(silence):
-                functions_ffmpeg_wrapper.create_silence_wav_sox(duration_s = phrase_silence_duration,
-                                                                file_path= silence)
+            if not os.path.isfile(phrase_silence):
+                functions_audio_wrappers.create_silence_wav_sox(duration_s = phrase_silence_duration,
+                                                                file_path= phrase_silence)
 
             # Phrase with Silence
             phrase_with_silence = audio_temp_folder + "part_" + str(n) + "_1_phrase_with_silence_" + str(analysed_block['number']) + ".wav"
             phrase = audio_temp_folder + str(analysed_block['number']) + ".wav"
             if not os.path.isfile(phrase_with_silence):
-                functions_ffmpeg_wrapper.amix_files_in_list(silence,phrase,phrase_with_silence)
+                functions_audio_wrappers.amix_files_in_list(phrase_silence, phrase, phrase_with_silence)
 
-            dur1 = get_audio_file_duration(phrase_with_silence)
-            dur2 = get_audio_file_duration(silence)
+            phrase_with_silence_duration_from_file = get_audio_file_duration(phrase_with_silence)
+            phrase_silence_duration_from_file = get_audio_file_duration(phrase_silence)
 
-            if dur1 != dur2:
-                print("ERROR! phrase_with_silence != silence")
-                print(dur1)
-                print(dur2)
+            if phrase_with_silence_duration_from_file != phrase_silence_duration_from_file:
+                print("ERROR! phrase_with_silence_duration_from_file != phrase_silence_duration_from_file")
+                print("phrase_with_silence_duration_from_file: " + phrase_with_silence_duration_from_file)
+                print("phrase_silence_duration_from_file: " + phrase_silence_duration_from_file)
                 exit()
 
             previous_end = analysed_block['end']
             n += 1
-    functions_ffmpeg_wrapper.concat_files_sox("projects/test/audio_temp/part*", result_audio_file)
+    functions_audio_wrappers.concat_files_sox(audio_temp_folder + "part*", result_audio_file)
     return audio_track
 
 
 def make_audio_track(subtitles_file, audio_temp_folder, result_audio_file):
     blocks = get_text_blocks_from_subtitles(subtitles_file)
-    check_blocks(blocks)
-    generate_audio_files_for_all_text_blocks(blocks, audio_temp_folder)
-    generate_result_file(blocks, audio_temp_folder, result_audio_file)
+    # check_blocks(blocks)
+    generate_audio_files_for_text_blocks(blocks, audio_temp_folder, result_audio_file)
 
 
 def process_project(project_name):
-    subtitles_file = "projects/" + project_name + "/sub/" + "en.srt"
+    subtitles_file = "projects/" + project_name + "/input/" + "en.srt"
     audio_temp_folder = "projects/" + project_name + "/audio_temp/"
     result_audio_file = "projects/" + project_name + "/result/audio.wav"
     make_audio_track(subtitles_file, audio_temp_folder, result_audio_file)
@@ -179,19 +175,75 @@ def process_project(project_name):
 
 def create_project(project_name):
     os.mkdir("projects/" + project_name)
-    os.mkdir("projects/" + project_name + "/sub/")
-    if not os.path.exists("projects/" + project_name + "/sub/" + "en.srt"):
-        os.mknod("projects/" + project_name + "/sub/" + "en.srt")
+    os.mkdir("projects/" + project_name + "/input/")
+    if not os.path.exists("projects/" + project_name + "/input/" + "en.srt"):
+        os.mknod("projects/" + project_name + "/input/" + "en.srt")
     os.mkdir("projects/" + project_name + "/audio_temp/")
     os.mkdir("projects/" + project_name + "/result/")
 
 
-project_name = "test"
-if not os.path.isdir("projects/" + project_name):
-    create_project(project_name)
-    print("Edit " + "projects/" + project_name + "/sub/" + "en.srt")
-    exit()
+mode = "default"
+# Remove 1st argument from the
+# list of command line arguments
+argumentList = sys.argv[1:]
 
-process_project(project_name)
+# Options
+options = "hi:o:p:m:"
+
+# Long options
+long_options = ["help", "input", "output", "project", "mode"]
+
+try:
+    # Parsing argument
+    arguments, values = getopt.getopt(argumentList, options, long_options)
+
+    # checking each argument
+    for currentArgument, currentValue in arguments:
+
+        if currentArgument in ("-h", "--Help"):
+            print("Displaying Help")
+
+        elif currentArgument in ("-i", "--input"):
+            input_file = currentValue
+
+        elif currentArgument in ("-o", "--output"):
+            output_file = currentValue
+
+        elif currentArgument in ("-p", "--project"):
+            project = currentValue
+
+        elif currentArgument in ("-m", "--mode"):
+            mode = currentValue
+
+except getopt.error as err:
+    # output error, and return with an error code
+    print(str(err))
+
+
+# project_name = "canada_uni"
+# input_file = "en.srt"
+# output_file = "audio.wav"
+
+print("mode: " + mode)
+print("project: " + project)
+print("input_file: " + input_file)
+print("output_file: " + output_file)
+
+if mode == "clear_temp_data":
+    if os.path.isdir("projects/" + project):
+        shutil.rmtree("projects/" + project)
+
+
+if not os.path.isdir("projects/" + project):
+    create_project(project)
+    shutil.copyfile(input_file, "projects/" + project + "/input/" + "en.srt")
+
+process_project(project)
+shutil.copyfile("projects/" + project + "/result/" + "audio.wav", output_file)
+
+if mode == "clear_temp_data":
+    shutil.rmtree("projects/" + project)
+
+print("File " + output_file + " is ready")
 
 

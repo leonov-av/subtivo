@@ -1,7 +1,7 @@
 import re
 import os
 import pyttsx3
-import functions_ffmpeg_wrapper
+import functions_audio_wrappers
 
 def get_voices_report(engine):
     voices = engine.getProperty('voices')
@@ -27,7 +27,7 @@ def save_phrase_to_file(text, engine, voice_id, voce_rate, file):
     wav_file = re.sub(".mp3",".wav",file)
     engine.save_to_file(text, wav_file, name = "text")
     engine.runAndWait()
-    functions_ffmpeg_wrapper.convert_wav_to_mp3(wav_file=wav_file, mp3_file=file)
+    functions_audio_wrappers.convert_wav_to_mp3(wav_file=wav_file, mp3_file=file)
     os.remove(wav_file)
 
 def get_speech_audio_file_texttospeech_microsoft(text,speed,file):

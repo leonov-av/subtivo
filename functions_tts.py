@@ -10,7 +10,7 @@ def get_speech_audio_file_texttospeech(text,speed,file):
 
 
 # Debug
-text = "Hello! My name is Alexander Leonov and today I would like to talk about vulnerabilities and Vulnerability Databases."
-speed = 3
-file = "test.mp3"
-get_speech_audio_file_texttospeech(text,speed,file)
+# text = "Hello! My name is Alexander Leonov and today I would like to talk about vulnerabilities and Vulnerability Databases."
+# speed = 3
+# file = "test.mp3"
+# get_speech_audio_file_texttospeech(text,speed,file)

@@ -1,9 +1,2 @@
-ffmpeg -i input/my_speech.mp4 -ar 22050  input/my_speech_input_track.mp3
-ffmpeg -i audio_track.mp3 -i input/my_speech.mp4 -c copy final_video.mp4
-
-Project structure:
-Project
- -> audio_temp
- -> result
- -> sub
- url.txt
+Example:
+python3.8 subtivo.py -i en.srt -o audio.wav -p temp_project -m "clear_temp_data"
